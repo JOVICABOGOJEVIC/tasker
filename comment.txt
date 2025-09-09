@@ -1,0 +1,6 @@
+stigao kurs do 2h:18
+
+//Sve javascript custom funkcije prebaciti u zasebni fajl, i odatle ih importovati
+//Staviti ikonice sve gore, pritiskom na jednu ikonicu nestaju ostale, kad se zatvori vrate se, spintasker ide dole
+//Preskocen Google sign in
+//Napraviti custom header komponentu za svaki view
