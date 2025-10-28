@@ -1,5 +1,5 @@
 import express from 'express';
-import { createJob, getJobs, getJob, updateJob, deleteJob } from '../../controllers/job/job.js';
+import { createJob, getJobs, getJob, updateJob, deleteJob, submitReport } from '../../controllers/job/job.js';
 
 const router = express.Router();
 
@@ -8,5 +8,6 @@ router.get('/', getJobs);
 router.get('/:id', getJob);
 router.patch('/:id', updateJob);
 router.delete('/:id', deleteJob);
+router.post('/:id/report', submitReport);
 
 export default router; 

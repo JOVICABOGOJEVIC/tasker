@@ -27,11 +27,34 @@ const jobSchema = mongoose.Schema({
         enum: ['Received', 'Diagnosing', 'Waiting for Parts', 'In Repair', 'Completed', 'Delivered', 'Cancelled', 'In Pending'], 
         default: 'In Pending' 
     },
-    serviceDate: { type: Date, required: true },
+    serviceDate: { type: Date, required: false },
+    scheduledTime: { type: String, required: false },
+    estimatedDuration: { type: Number, required: false }, // Duration in hours (e.g., 0.5, 1, 1.5, etc.)
     assignedTo: { type: String, required: true },
     usedSpareParts: [{ type: String }],
     
+    // Report information
+    report: {
+        materialsUsed: { type: String },
+        workDescription: { type: String },
+        serviceCharged: { type: String },
+        customerSignature: { type: String },
+        additionalNotes: { type: String },
+        usedSpareParts: [{
+            _id: { type: String },
+            name: { type: String },
+            code: { type: String },
+            price: { type: Number },
+            quantity: { type: Number }
+        }],
+        totalTravelTime: { type: Number }, // in seconds
+        totalWorkTime: { type: Number }, // in seconds
+        completedAt: { type: Date },
+        submittedAt: { type: Date, default: Date.now }
+    },
+    
     // Metadata
+    businessType: { type: String, required: true },
     creator: { type: String },
     createdAt: {
         type: Date,

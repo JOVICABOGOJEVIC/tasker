@@ -5,10 +5,11 @@ export const createSparePart = async (req, res) => {
   try {
     console.log('=== Starting spare part creation ===');
     console.log('Request headers:', req.headers);
-    console.log('Request user:', { userId: req.userId, userEmail: req.userEmail });
+    console.log('Request user:', { userId: req.userId, userEmail: req.user?.email });
     console.log('Received spare part data:', req.body);
     
-    if (!req.userEmail) {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
       console.error('No user email found in request');
       return res.status(401).json({ message: 'Korisnik nije autentifikovan' });
     }
@@ -41,7 +42,7 @@ export const createSparePart = async (req, res) => {
       purchasePrice: parseFloat(req.body.purchasePrice),
       tax: parseFloat(req.body.tax),
       quantity: parseInt(req.body.quantity),
-      userEmail: req.userEmail
+      userEmail: userEmail
     };
 
     console.log('Prepared spare part data:', sparePartData);
@@ -83,7 +84,8 @@ export const createSparePart = async (req, res) => {
 
 export const getSpareParts = async (req, res) => {
   try {
-    console.log('Fetching spare parts for user:', req.userEmail);
+    const userEmail = req.user?.email;
+    console.log('Fetching spare parts for user:', userEmail);
     console.log('Fetching spare parts...');
     console.log('Current MongoDB connection state:', mongoose.connection.readyState);
     console.log('Current database:', mongoose.connection.db.databaseName);
@@ -94,8 +96,13 @@ export const getSpareParts = async (req, res) => {
     console.log('Using model:', SparePart.modelName);
     console.log('Model collection:', SparePart.collection.name);
     
-    const spareParts = await SparePart.find({ userEmail: req.userEmail });
-    console.log(`Found ${spareParts.length} spare parts for user ${req.userEmail}`);
+    if (!userEmail) {
+      console.error('No user email found in request');
+      return res.status(401).json({ message: 'Korisnik nije autentifikovan' });
+    }
+    
+    const spareParts = await SparePart.find({ userEmail: userEmail });
+    console.log(`Found ${spareParts.length} spare parts for user ${userEmail}`);
     
     // Count documents in collection directly
     const count = await mongoose.connection.db.collection('spareparts').countDocuments();
@@ -110,9 +117,14 @@ export const getSpareParts = async (req, res) => {
 
 export const getSparePart = async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ message: 'Korisnik nije autentifikovan' });
+    }
+    
     const sparePart = await SparePart.findOne({
       _id: req.params.id,
-      userEmail: req.userEmail
+      userEmail: userEmail
     });
     
     if (!sparePart) {
@@ -128,10 +140,15 @@ export const getSparePart = async (req, res) => {
 
 export const updateSparePart = async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ message: 'Korisnik nije autentifikovan' });
+    }
+    
     // Prvo proverimo da li deo pripada ulogovanom korisniku
     const existingSparePart = await SparePart.findOne({
       _id: req.params.id,
-      userEmail: req.userEmail
+      userEmail: userEmail
     });
 
     if (!existingSparePart) {
@@ -140,7 +157,7 @@ export const updateSparePart = async (req, res) => {
 
     const sparePart = await SparePart.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, userEmail: req.userEmail },
+      { ...req.body, userEmail: userEmail },
       { new: true, runValidators: true }
     );
     
@@ -156,10 +173,15 @@ export const updateSparePart = async (req, res) => {
 
 export const deleteSparePart = async (req, res) => {
   try {
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ message: 'Korisnik nije autentifikovan' });
+    }
+    
     // Prvo proverimo da li deo pripada ulogovanom korisniku
     const sparePart = await SparePart.findOneAndDelete({
       _id: req.params.id,
-      userEmail: req.userEmail
+      userEmail: userEmail
     });
     
     if (!sparePart) {

@@ -9,38 +9,23 @@ export const createClient = async (req, res) => {
       return res.status(401).json({ message: 'Company ID not found in token' });
     }
 
-    // Validate required fields
-    const { name, phone, address } = req.body;
-    console.log('Received client data:', { name, phone, address });
+    console.log('Received client data:', req.body);
     
-    const missingFields = [];
+    // No validation - all fields are optional except name and phone
+    // Only check if name and phone exist (basic requirement)
+    const { name, phone } = req.body;
     
-    if (!name?.trim()) missingFields.push('Name');
-    if (!phone?.trim()) missingFields.push('Phone');
-    if (!address?.street?.trim()) missingFields.push('Street');
-    if (!address?.number?.trim()) missingFields.push('Number');
-    
-    if (missingFields.length > 0) {
-      console.log('Validation error: Missing fields:', missingFields);
+    if (!name?.trim()) {
+      console.log('Validation error: Name is required');
       return res.status(400).json({ 
-        message: `Required fields missing: ${missingFields.join(', ')}` 
+        message: 'Name is required' 
       });
     }
-
-    // Validate phone number format
-    const phoneRegex = /^\+?[\d\s-]{10,}$/;
-    if (!phoneRegex.test(phone)) {
-      console.log('Validation error: Invalid phone format:', phone);
+    
+    if (!phone?.trim()) {
+      console.log('Validation error: Phone is required');
       return res.status(400).json({ 
-        message: 'Invalid phone number format. Must be at least 10 digits.' 
-      });
-    }
-
-    // Validate email if provided
-    if (req.body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
-      console.log('Validation error: Invalid email format:', req.body.email);
-      return res.status(400).json({ 
-        message: 'Invalid email format.' 
+        message: 'Phone is required' 
       });
     }
 
@@ -125,36 +110,7 @@ export const updateClient = async (req, res) => {
       return res.status(401).json({ message: 'Company ID not found in token' });
     }
 
-    // Validate required fields
-    const { name, phone, address } = req.body;
-    const missingFields = [];
-    
-    if (!name?.trim()) missingFields.push('Name');
-    if (!phone?.trim()) missingFields.push('Phone');
-    if (!address?.street?.trim()) missingFields.push('Street');
-    if (!address?.number?.trim()) missingFields.push('Number');
-    
-    if (missingFields.length > 0) {
-      return res.status(400).json({ 
-        message: `Required fields missing: ${missingFields.join(', ')}` 
-      });
-    }
-
-    // Validate phone number format
-    const phoneRegex = /^\+?[\d\s-]{10,}$/;
-    if (!phoneRegex.test(phone)) {
-      return res.status(400).json({ 
-        message: 'Invalid phone number format. Must be at least 10 digits.' 
-      });
-    }
-
-    // Validate email if provided
-    if (req.body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.body.email)) {
-      return res.status(400).json({ 
-        message: 'Invalid email format.' 
-      });
-    }
-
+    // No validation - all fields are optional
     // Find and update the client, ensuring it belongs to the company
     const client = await ClientModal.findOneAndUpdate(
       { 
@@ -167,7 +123,7 @@ export const updateClient = async (req, res) => {
       },
       { 
         new: true,
-        runValidators: true 
+        runValidators: false 
       }
     );
 
@@ -177,19 +133,11 @@ export const updateClient = async (req, res) => {
 
     res.status(200).json(client);
   } catch (error) {
-    // Handle validation errors
-    if (error.name === 'ValidationError') {
-      const validationErrors = Object.values(error.errors).map(err => err.message);
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: validationErrors 
-      });
-    }
-    
     // Handle other errors
     console.error('Error updating client:', error);
     res.status(500).json({ 
-      message: 'An error occurred while updating the client' 
+      message: 'An error occurred while updating the client',
+      error: error.message
     });
   }
 };

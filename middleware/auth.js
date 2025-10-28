@@ -10,10 +10,26 @@ const auth = async (req, res, next) => {
 
     // Verify the token
     const decodedData = jwt.verify(token, 'test'); // Replace 'test' with your actual secret key
+    
+    console.log('🔐 Auth Middleware: Token decoded successfully');
+    console.log('  Decoded data:', decodedData);
+    console.log('  User ID:', decodedData?.id);
+    console.log('  Email:', decodedData?.email);
+    console.log('  Type:', decodedData?.type);
 
     // Add the user ID to the request object
+    req.user = {
+      id: decodedData?.id,
+      email: decodedData?.email,
+      type: decodedData?.type || 'company'
+    };
+    
+    // Also add userId for backward compatibility with existing controllers
     req.userId = decodedData?.id;
-    req.userEmail = decodedData?.email;
+    
+    console.log('🔐 Auth Middleware: Request object updated');
+    console.log('  req.user:', req.user);
+    console.log('  req.userId:', req.userId);
     
     next();
   } catch (error) {

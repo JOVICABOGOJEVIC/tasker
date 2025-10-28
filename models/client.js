@@ -12,38 +12,27 @@ const clientSchema = mongoose.Schema({
   },
   phone: {
     type: String,
-    required: [true, 'Phone number is required'],
-    validate: {
-      validator: function(v) {
-        return /^\+?[\d\s-]{10,}$/.test(v);
-      },
-      message: props => `${props.value} is not a valid phone number!`
-    }
+    required: [true, 'Phone number is required']
   },
   email: { 
-    type: String,
-    validate: {
-      validator: function(v) {
-        return !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-      },
-      message: props => `${props.value} is not a valid email address!`
-    }
+    type: String
   },
   address: {
     street: {
       type: String,
-      required: [true, 'Street name is required']
+      required: false
     },
     number: {
       type: String,
-      required: [true, 'Street number is required']
+      required: false
     },
     floor: String,
     apartment: String,
     isHouse: {
       type: Boolean,
       default: false
-    }
+    },
+    countryCode: String
   },
   description: { 
     type: String 

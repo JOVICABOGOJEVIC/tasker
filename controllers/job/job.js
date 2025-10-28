@@ -11,8 +11,13 @@ export const createJob = async (req, res) => {
 
 export const getJobs = async (req, res) => {
   try {
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, businessType } = req.query;
     let query = {};
+    
+    // Filter by businessType if provided
+    if (businessType) {
+      query.businessType = businessType;
+    }
     
     if (startDate && endDate) {
       query.serviceDate = {
@@ -44,7 +49,7 @@ export const updateJob = async (req, res) => {
   try {
     const job = await JobModal.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      { ...req.body, updatedAt: Date.now() },
       { new: true }
     );
     if (!job) {
@@ -63,6 +68,35 @@ export const deleteJob = async (req, res) => {
       return res.status(404).json({ message: "Job not found" });
     }
     res.status(200).json({ message: "Job deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+export const submitReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const reportData = req.body;
+    
+    // Update job with report data and set status to Completed
+    const job = await JobModal.findByIdAndUpdate(
+      id,
+      { 
+        report: reportData,
+        status: 'Completed',
+        updatedAt: Date.now()
+      },
+      { new: true }
+    );
+    
+    if (!job) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    
+    res.status(200).json({ 
+      message: "Report submitted successfully", 
+      job 
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
