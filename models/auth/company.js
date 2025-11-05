@@ -14,6 +14,11 @@ const companySchema = mongoose.Schema({
   countryCode: {type: String, required: true, default: 'rs'},
   city: {type: String, required: true},
   address: {type: String, required: true},
+  pib: {type: String},
+  registrationNumber: {type: String},
+  bankAccount: {type: String},
+  bankName: {type: String},
+  website: {type: String},
   
   // Business type and configuration
   businessType: {
@@ -38,6 +43,30 @@ const companySchema = mongoose.Schema({
   
   // Basic role assignment
   role: {type: String, required: true, default: "owner"},
+  
+  // Subscription information
+  subscriptionPackage: {
+    type: String,
+    enum: ['free', 'standard', 'business', 'premium'],
+    default: 'free'
+  },
+  subscriptionPrice: {type: Number, default: 0},
+  subscriptionStartDate: {type: Date},
+  subscriptionEndDate: {type: Date},
+  subscriptionActive: {type: Boolean, default: false},
+  
+  // Package usage tracking
+  packageUsage: {
+    addressesThisMonth: {type: Number, default: 0}, // Track addresses (clients) for Free package limit
+    addressesLimit: {type: Number, default: 100}, // Free: 100, others: unlimited (null)
+    addressesMonthReset: {type: Date}, // When to reset address counter
+    smsSent: {type: Number, default: 0}, // SMS sent count for Standard+
+    smsLimit: {type: Number, default: null}, // null = unlimited for Standard+
+    hasWebShop: {type: Boolean, default: false}, // Business+ can create web shop
+    hasAI: {type: Boolean, default: false}, // Premium has AI features
+    aiUsageCount: {type: Number, default: 0}, // Track AI usage
+    aiUsageLimit: {type: Number, default: null} // null = unlimited for Premium
+  },
   
   // Auto mechanic specific fields - all made optional
   garageAddress: {type: String, required: false},
@@ -83,6 +112,11 @@ const companySchema = mongoose.Schema({
     currency: {type: String, default: "RSD"},
     dateFormat: {type: String, default: "DD/MM/YYYY"}
   },
+  
+  // Email verification
+  isEmailVerified: {type: Boolean, default: false},
+  emailVerificationToken: {type: String},
+  emailVerificationTokenExpiry: {type: Date},
   
   // Timestamps
   created: {type: Date, default: Date.now},

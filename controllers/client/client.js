@@ -1,4 +1,5 @@
 import ClientModal from "../../models/client.js";
+import CompanyModel from "../../models/auth/company.js";
 
 export const createClient = async (req, res) => {
   try {
@@ -29,12 +30,63 @@ export const createClient = async (req, res) => {
       });
     }
 
+    // Check package limits for Free package
+    const company = await CompanyModel.findById(companyId);
+    if (company && company.subscriptionPackage === 'free') {
+      const now = new Date();
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      
+      // Reset counter if new month
+      if (!company.packageUsage?.addressesMonthReset || 
+          new Date(company.packageUsage.addressesMonthReset) < monthStart) {
+        company.packageUsage = company.packageUsage || {};
+        company.packageUsage.addressesThisMonth = 0;
+        company.packageUsage.addressesMonthReset = monthStart;
+        await company.save();
+      }
+      
+      const currentMonthCount = company.packageUsage?.addressesThisMonth || 0;
+      const limit = company.packageUsage?.addressesLimit || 100;
+      
+      if (currentMonthCount >= limit) {
+        return res.status(403).json({ 
+          message: `Dostigli ste mesečni limit od ${limit} adresa za Free paket. Molimo nadogradite na Standard paket za neograničene adrese.`,
+          limitReached: true,
+          currentCount: currentMonthCount,
+          limit: limit
+        });
+      }
+    }
+
     console.log('Creating client with data:', { ...req.body, companyId });
     const client = await ClientModal.create({
       ...req.body,
       companyId
     });
     console.log('Client created successfully:', client);
+    
+    // Update address counter for Free package
+    if (company && company.subscriptionPackage === 'free') {
+      company.packageUsage = company.packageUsage || {};
+      company.packageUsage.addressesThisMonth = (company.packageUsage.addressesThisMonth || 0) + 1;
+      if (!company.packageUsage.addressesMonthReset) {
+        company.packageUsage.addressesMonthReset = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      }
+      await company.save();
+    }
+    
+    // Emit WebSocket event for new client
+    const io = req.app.get('io');
+    if (io) {
+      // Get company business type for room targeting
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('client_created', { client, companyId });
+        console.log('👤 Emitted client_created via WebSocket');
+      }
+    }
+    
     res.status(201).json(client);
   } catch (error) {
     // Handle validation errors
@@ -131,6 +183,17 @@ export const updateClient = async (req, res) => {
       return res.status(404).json({ message: "Client not found" });
     }
 
+    // Emit WebSocket event for client update
+    const io = req.app.get('io');
+    if (io) {
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('client_updated', { client, companyId });
+        console.log('👤 Emitted client_updated via WebSocket');
+      }
+    }
+
     res.status(200).json(client);
   } catch (error) {
     // Handle other errors
@@ -159,6 +222,21 @@ export const deleteClient = async (req, res) => {
     if (!client) {
       return res.status(404).json({ message: "Client not found" });
     }
+    
+    // Emit WebSocket event for client deletion
+    const io = req.app.get('io');
+    if (io) {
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('client_deleted', { 
+          clientId: client._id, 
+          companyId 
+        });
+        console.log('👤 Emitted client_deleted via WebSocket');
+      }
+    }
+    
     res.status(200).json({ message: "Client deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });

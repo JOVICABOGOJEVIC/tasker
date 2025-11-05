@@ -62,6 +62,30 @@ export const updateWorkerStatus = async (req, res) => {
     
     console.log('✅ Worker status updated:', updatedStatus);
     
+    // Emit WebSocket event for worker status update
+    const io = req.app.get('io');
+    if (io) {
+      const { workerId } = req.params;
+      const WorkerModel = (await import('../../models/worker.js')).default;
+      const worker = await WorkerModel.findById(workerId);
+      
+      if (worker && worker.companyId) {
+        const CompanyModel = (await import('../auth/company.js')).default;
+        const company = await CompanyModel.findById(worker.companyId);
+        if (company && company.businessType) {
+          io.to(`company_${company.businessType}`).emit('worker_status_changed', {
+            workerId,
+            status,
+            currentJobId,
+            location,
+            notes,
+            companyId: worker.companyId
+          });
+          console.log('👷 Emitted worker_status_changed via WebSocket');
+        }
+      }
+    }
+    
     res.status(200).json(updatedStatus);
   } catch (error) {
     console.error('💥 Error updating worker status:', error);

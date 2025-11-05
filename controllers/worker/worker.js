@@ -21,6 +21,18 @@ export const createWorker = async (req, res) => {
     }
     
     const worker = await WorkerModal.create(req.body);
+    
+    // Emit WebSocket event for new worker
+    const io = req.app.get('io');
+    if (io && worker.companyId) {
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(worker.companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('worker_created', { worker });
+        console.log('👷 Emitted worker_created via WebSocket');
+      }
+    }
+    
     res.status(201).json(worker);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -73,6 +85,17 @@ export const updateWorker = async (req, res) => {
     console.log('  ✅ Worker updated successfully');
     console.log('  New hasAccess:', worker.hasAccess);
     
+    // Emit WebSocket event for worker update
+    const io = req.app.get('io');
+    if (io && worker.companyId) {
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(worker.companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('worker_updated', { worker });
+        console.log('👷 Emitted worker_updated via WebSocket');
+      }
+    }
+    
     res.status(200).json(worker);
   } catch (error) {
     console.error('💥 Error updating worker:', error);
@@ -86,6 +109,21 @@ export const deleteWorker = async (req, res) => {
     if (!worker) {
       return res.status(404).json({ message: "Worker not found" });
     }
+    
+    // Emit WebSocket event for worker deletion
+    const io = req.app.get('io');
+    if (io && worker.companyId) {
+      const CompanyModel = (await import('../auth/company.js')).default;
+      const company = await CompanyModel.findById(worker.companyId);
+      if (company && company.businessType) {
+        io.to(`company_${company.businessType}`).emit('worker_deleted', { 
+          workerId: worker._id,
+          companyId: worker.companyId
+        });
+        console.log('👷 Emitted worker_deleted via WebSocket');
+      }
+    }
+    
     res.status(200).json({ message: "Worker deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });

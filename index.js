@@ -14,6 +14,11 @@ import workerRoutes from './routes/worker/worker.js';
 import workerStatusRoutes from './routes/worker/workerStatus.js';
 import sparePartRoutes from './routes/sparePart/sparePart.js';
 import teamRoutes from './routes/team/team.js';
+import superAdminRoutes from './routes/superadmin/superAdmin.js';
+import notificationRoutes from './routes/notification/notification.js';
+import inventoryRoutes from './routes/inventory/inventory.js';
+import paymentRoutes from './routes/payment/payment.js';
+import subscriptionPaymentRoutes from './routes/subscriptionPayment/subscriptionPayment.js';
 
 // Konfigurisanje dotenv-a
 dotenv.config({ path: './.env' });
@@ -32,8 +37,12 @@ const io = new Server(server, {
 });
 
 // CORS konfiguracija
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['*'];
+
 app.use(cors({
-  origin: '*', // Dozvoli pristup sa svih domena
+  origin: allowedOrigins.includes('*') ? '*' : allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -128,6 +137,11 @@ app.use("/api/worker", workerRoutes); // Changed from /api/workers to /api/worke
 app.use("/api/worker", workerStatusRoutes); // Worker status routes
 app.use("/api/sparePart", sparePartRoutes);
 app.use("/api/team", teamRoutes);
+app.use("/api/superadmin", superAdminRoutes);
+app.use("/api/notifications", notificationRoutes);
+app.use("/api/inventory", inventoryRoutes);
+app.use("/api/payments", paymentRoutes);
+app.use("/api/subscription-payments", subscriptionPaymentRoutes);
 
 // Middleware za logovanje grešaka
 app.use((err, req, res, next) => {

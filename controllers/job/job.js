@@ -3,6 +3,14 @@ import JobModal from "../../models/job.js";
 export const createJob = async (req, res) => {
   try {
     const job = await JobModal.create(req.body);
+    
+    // Emit WebSocket event for new job
+    const io = req.app.get('io');
+    if (io && job.businessType) {
+      io.to(`company_${job.businessType}`).emit('job_created', { job });
+      console.log('📋 Emitted job_created via WebSocket');
+    }
+    
     res.status(201).json(job);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -55,6 +63,19 @@ export const updateJob = async (req, res) => {
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
+    
+    // Emit WebSocket event for job update
+    const io = req.app.get('io');
+    if (io && job.businessType) {
+      io.to(`company_${job.businessType}`).emit('job_updated', { 
+        jobId: job._id,
+        job,
+        status: job.status,
+        businessType: job.businessType
+      });
+      console.log('📋 Emitted job_updated via WebSocket');
+    }
+    
     res.status(200).json(job);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -67,6 +88,17 @@ export const deleteJob = async (req, res) => {
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
+    
+    // Emit WebSocket event for job deletion
+    const io = req.app.get('io');
+    if (io && job.businessType) {
+      io.to(`company_${job.businessType}`).emit('job_deleted', { 
+        jobId: job._id,
+        businessType: job.businessType
+      });
+      console.log('📋 Emitted job_deleted via WebSocket');
+    }
+    
     res.status(200).json({ message: "Job deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });

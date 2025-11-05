@@ -1,7 +1,9 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 import CompanyModel from "../../models/auth/company.js";
+import { sendVerificationEmail } from '../../utils/emailService.js';
 
 const secret = "test";
 
@@ -44,6 +46,12 @@ export const signinCompany = async(req,res)=>{
             return res.status(400).json({message:"User does not exist"});
         }
 
+        // Check if company has a valid password
+        if(!oldCompany.password || oldCompany.password.trim() === ''){
+            console.log("Company exists but has no password:", email);
+            return res.status(400).json({message:"Account is not properly set up. Please contact support or recreate the account."});
+        }
+
         console.log("Company found:", {
             id: oldCompany._id,
             email: oldCompany.email,
@@ -56,6 +64,15 @@ export const signinCompany = async(req,res)=>{
         if(!isPasswordCorect) {
             console.log("Invalid password for company:", email);
             return res.status(400).json({message:'Invalid credentials'});
+        }
+
+        // Check if email is verified
+        if (!oldCompany.isEmailVerified) {
+            console.log("Email not verified for company:", email);
+            return res.status(403).json({
+                message: 'Email not verified. Please check your email and verify your account.',
+                requiresVerification: true
+            });
         }
         
         // Get country code from phone number
@@ -150,6 +167,11 @@ export const signupCompany = async(req,res) =>{
         
         const hashedPassword = await bcrypt.hash(password, 12);
         
+        // Generate email verification token
+        const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+        const emailVerificationTokenExpiry = new Date();
+        emailVerificationTokenExpiry.setHours(emailVerificationTokenExpiry.getHours() + 24); // Token expires in 24 hours
+        
         // Prepare company data with required fields
         const companyData = {
             email,
@@ -161,38 +183,51 @@ export const signupCompany = async(req,res) =>{
             countryCode,
             address,
             businessType,
-            role: "owner"
+            role: "owner",
+            isEmailVerified: false,
+            emailVerificationToken,
+            emailVerificationTokenExpiry
         };
         
         console.log("Creating company with data:", companyData);
         const result = await CompanyModel.create(companyData);
         
-        // Generate JWT token with all necessary data
-        const token = jwt.sign(
-            {
-                email: result.email, 
-                id: result._id,
-                businessType: result.businessType,
-                countryCode: result.countryCode
-            }, 
-            secret, 
-            {expiresIn: "24h"}
-        );
+        // Send verification email
+        try {
+            const emailResult = await sendVerificationEmail(
+                result.email,
+                emailVerificationToken,
+                result.companyName
+            );
+            
+            if (!emailResult.success) {
+                console.error("Failed to send verification email:", emailResult.error);
+                // Don't fail registration if email fails, but log it
+            } else {
+                console.log("Verification email sent successfully");
+            }
+        } catch (emailError) {
+            console.error("Error sending verification email:", emailError);
+            // Don't fail registration if email fails
+        }
         
         console.log("Company created successfully:", {
             id: result._id,
             email: result.email,
             businessType: result.businessType,
-            countryCode: result.countryCode
+            countryCode: result.countryCode,
+            emailVerified: result.isEmailVerified
         });
         
         res.status(201).json({
             result: {
                 ...result._doc,
                 countryCode: result.countryCode,
-                businessType: result.businessType
-            }, 
-            token
+                businessType: result.businessType,
+                isEmailVerified: result.isEmailVerified
+            },
+            message: 'Registration successful. Please check your email to verify your account.',
+            requiresVerification: true
         });
     } catch(error) {
         console.error("Registration error:", error);
@@ -225,6 +260,11 @@ export const registerCompany = async (req, res) => {
     // Hashovanje lozinke
     const hashedPassword = await bcrypt.hash(password, 12);
 
+    // Generate email verification token
+    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const emailVerificationTokenExpiry = new Date();
+    emailVerificationTokenExpiry.setHours(emailVerificationTokenExpiry.getHours() + 24);
+
     // Kreiranje nove kompanije
     const result = await CompanyModel.create({
       ownerName,
@@ -236,8 +276,28 @@ export const registerCompany = async (req, res) => {
       city,
       address,
       businessType,
-      role: "owner"
+      role: "owner",
+      isEmailVerified: false,
+      emailVerificationToken,
+      emailVerificationTokenExpiry
     });
+
+    // Send verification email
+    try {
+      const emailResult = await sendVerificationEmail(
+        result.email,
+        emailVerificationToken,
+        result.companyName
+      );
+      
+      if (!emailResult.success) {
+        console.error("Failed to send verification email:", emailResult.error);
+      } else {
+        console.log("Verification email sent successfully");
+      }
+    } catch (emailError) {
+      console.error("Error sending verification email:", emailError);
+    }
 
     // Generisanje JWT tokena
     const token = jwt.sign(
@@ -250,7 +310,12 @@ export const registerCompany = async (req, res) => {
       { expiresIn: "24h" }
     );
 
-    res.status(201).json({ result, token });
+    res.status(201).json({ 
+      result, 
+      token,
+      message: 'Registration successful. Please check your email to verify your account.',
+      requiresVerification: true
+    });
   } catch (error) {
     console.error("Registration error:", error);
     res.status(500).json({ message: "Something went wrong" });
@@ -292,9 +357,15 @@ export const getCompany = async (req, res) => {
 export const updateCompany = async (req, res) => {
     try {
         const { id } = req.params;
+        const now = new Date();
+        const updates = {
+            ...req.body,
+            lastUpdated: now,
+            updatedAt: now
+        };
         const company = await CompanyModel.findByIdAndUpdate(
             id,
-            req.body,
+            updates,
             { new: true }
         );
         if (!company) {
@@ -316,5 +387,110 @@ export const deleteCompany = async (req, res) => {
         res.status(200).json({ message: "Company deleted successfully" });
     } catch (error) {
         res.status(500).json({ message: error.message });
+    }
+};
+
+// Email verification endpoint
+export const verifyEmail = async (req, res) => {
+    try {
+        const { token } = req.query;
+        
+        if (!token) {
+            return res.status(400).json({ message: "Verification token is required" });
+        }
+        
+        // Find company with this verification token
+        const company = await CompanyModel.findOne({
+            emailVerificationToken: token,
+            emailVerificationTokenExpiry: { $gt: new Date() } // Token must not be expired
+        });
+        
+        if (!company) {
+            return res.status(400).json({ 
+                message: "Invalid or expired verification token" 
+            });
+        }
+        
+        // Check if already verified
+        if (company.isEmailVerified) {
+            return res.status(400).json({ 
+                message: "Email is already verified" 
+            });
+        }
+        
+        // Verify the email
+        company.isEmailVerified = true;
+        company.emailVerificationToken = undefined;
+        company.emailVerificationTokenExpiry = undefined;
+        await company.save();
+        
+        console.log("Email verified successfully for company:", company.email);
+        
+        res.status(200).json({ 
+            message: "Email verified successfully",
+            email: company.email,
+            companyName: company.companyName
+        });
+    } catch (error) {
+        console.error("Email verification error:", error);
+        res.status(500).json({ message: "Something went wrong during email verification" });
+    }
+};
+
+// Resend verification email endpoint
+export const resendVerificationEmail = async (req, res) => {
+    try {
+        const { email } = req.body;
+        
+        if (!email) {
+            return res.status(400).json({ message: "Email is required" });
+        }
+        
+        // Find company
+        const company = await CompanyModel.findOne({ email });
+        
+        if (!company) {
+            return res.status(404).json({ message: "Company not found" });
+        }
+        
+        // Check if already verified
+        if (company.isEmailVerified) {
+            return res.status(400).json({ 
+                message: "Email is already verified" 
+            });
+        }
+        
+        // Generate new verification token
+        const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+        const emailVerificationTokenExpiry = new Date();
+        emailVerificationTokenExpiry.setHours(emailVerificationTokenExpiry.getHours() + 24);
+        
+        // Update company with new token
+        company.emailVerificationToken = emailVerificationToken;
+        company.emailVerificationTokenExpiry = emailVerificationTokenExpiry;
+        await company.save();
+        
+        // Send verification email
+        const emailResult = await sendVerificationEmail(
+            company.email,
+            emailVerificationToken,
+            company.companyName
+        );
+        
+        if (!emailResult.success) {
+            console.error("Failed to send verification email:", emailResult.error);
+            return res.status(500).json({ 
+                message: "Failed to send verification email. Please try again later." 
+            });
+        }
+        
+        console.log("Verification email resent successfully for:", company.email);
+        
+        res.status(200).json({ 
+            message: "Verification email sent successfully. Please check your email." 
+        });
+    } catch (error) {
+        console.error("Resend verification email error:", error);
+        res.status(500).json({ message: "Something went wrong" });
     }
 };
