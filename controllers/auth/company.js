@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
 import CompanyModel from "../../models/auth/company.js";
-import { sendVerificationEmail } from '../../utils/emailService.js';
+import { sendVerificationEmail, sendPasswordResetEmail } from '../../utils/emailService.js';
 
 const secret = "test";
 
@@ -492,5 +492,151 @@ export const resendVerificationEmail = async (req, res) => {
     } catch (error) {
         console.error("Resend verification email error:", error);
         res.status(500).json({ message: "Something went wrong" });
+    }
+};
+
+// Forgot password - zahtev za resetovanje lozinke
+export const forgotPassword = async (req, res) => {
+    console.log("🔐 Forgot Password Request Received");
+    console.log("  Request body:", req.body);
+    
+    try {
+        const { email } = req.body;
+        
+        console.log("  Email from request:", email);
+        
+        if (!email) {
+            console.log("  ❌ Email missing");
+            return res.status(400).json({ message: "Email adresa je obavezna" });
+        }
+        
+        // Pronađi kompaniju po emailu
+        console.log("  🔍 Searching for company with email:", email);
+        const company = await CompanyModel.findOne({ email });
+        
+        // Uvek vraćamo uspešan odgovor zbog sigurnosti (ne otkrivamo da li email postoji)
+        if (!company) {
+            console.log("  ⚠️ Company not found for email:", email);
+            console.log("  📧 Returning generic success message (security)");
+            return res.status(200).json({ 
+                message: "Ako email postoji, verifikacioni link je poslat na vašu email adresu." 
+            });
+        }
+        
+        console.log("  ✅ Company found:", {
+            id: company._id,
+            email: company.email,
+            isEmailVerified: company.isEmailVerified,
+            companyName: company.companyName
+        });
+        
+        // Proveri da li je email verifikovan
+        if (!company.isEmailVerified) {
+            console.log("  ⚠️ Email not verified for company:", company.email);
+            return res.status(400).json({ 
+                message: "Email adresa nije verifikovana. Molimo vas da prvo verifikujete email adresu." 
+            });
+        }
+        
+        console.log("  ✅ Email is verified, proceeding with password reset");
+        
+        // Generiši reset token
+        const passwordResetToken = crypto.randomBytes(32).toString('hex');
+        const passwordResetTokenExpiry = new Date();
+        passwordResetTokenExpiry.setHours(passwordResetTokenExpiry.getHours() + 1); // Token važi 1 sat
+        
+        // Sačuvaj token u bazi
+        company.passwordResetToken = passwordResetToken;
+        company.passwordResetTokenExpiry = passwordResetTokenExpiry;
+        await company.save();
+        
+        // Pošalji email sa reset linkom
+        console.log("Attempting to send password reset email to:", company.email);
+        console.log("Reset token generated:", passwordResetToken.substring(0, 10) + "...");
+        
+        try {
+            const emailResult = await sendPasswordResetEmail(
+                company.email,
+                passwordResetToken
+            );
+            
+            console.log("Email send result:", emailResult);
+            
+            if (!emailResult.success) {
+                console.error("❌ Failed to send password reset email:", emailResult.error);
+                console.error("Full error details:", JSON.stringify(emailResult, null, 2));
+                return res.status(500).json({ 
+                    message: "Greška pri slanju emaila. Molimo pokušajte ponovo kasnije.",
+                    error: process.env.NODE_ENV === 'development' ? emailResult.error : undefined
+                });
+            }
+            
+            console.log("✅ Password reset email sent successfully to:", company.email);
+            console.log("Email message ID:", emailResult.messageId);
+        } catch (emailError) {
+            console.error("❌ Exception sending password reset email:", emailError);
+            console.error("Error stack:", emailError.stack);
+            return res.status(500).json({ 
+                message: "Greška pri slanju emaila. Molimo pokušajte ponovo kasnije.",
+                error: process.env.NODE_ENV === 'development' ? emailError.message : undefined
+            });
+        }
+        
+        res.status(200).json({ 
+            message: "Ako email postoji, verifikacioni link je poslat na vašu email adresu." 
+        });
+    } catch (error) {
+        console.error("Forgot password error:", error);
+        res.status(500).json({ message: "Došlo je do greške. Molimo pokušajte ponovo." });
+    }
+};
+
+// Reset password - resetovanje lozinke sa tokenom
+export const resetPassword = async (req, res) => {
+    try {
+        const { token, password } = req.body;
+        
+        if (!token || !password) {
+            return res.status(400).json({ 
+                message: "Token i nova lozinka su obavezni" 
+            });
+        }
+        
+        if (password.length < 6) {
+            return res.status(400).json({ 
+                message: "Lozinka mora imati najmanje 6 karaktera" 
+            });
+        }
+        
+        // Pronađi kompaniju sa validnim reset tokenom
+        const company = await CompanyModel.findOne({
+            passwordResetToken: token,
+            passwordResetTokenExpiry: { $gt: new Date() } // Token mora biti važeći
+        });
+        
+        if (!company) {
+            return res.status(400).json({ 
+                message: "Nevažeći ili istekao token za resetovanje lozinke" 
+            });
+        }
+        
+        // Hashuj novu lozinku
+        const hashedPassword = await bcrypt.hash(password, 12);
+        
+        // Ažuriraj lozinku i obriši reset token
+        company.password = hashedPassword;
+        company.passwordResetToken = undefined;
+        company.passwordResetTokenExpiry = undefined;
+        await company.save();
+        
+        console.log("Password reset successfully for company:", company.email);
+        
+        res.status(200).json({ 
+            message: "Lozinka je uspešno resetovana. Možete se prijaviti sa novom lozinkom.",
+            email: company.email
+        });
+    } catch (error) {
+        console.error("Reset password error:", error);
+        res.status(500).json({ message: "Došlo je do greške pri resetovanju lozinke." });
     }
 };

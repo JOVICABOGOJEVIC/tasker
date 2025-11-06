@@ -2,21 +2,21 @@ import mongoose from 'mongoose';
 
 const jobSchema = mongoose.Schema({
     // Client information
-    clientName: { type: String, required: true },
-    clientPhone: { type: String, required: true },
-    clientEmail: { type: String, required: true },
+    clientName: { type: String, required: false, default: 'Unknown Client' },
+    clientPhone: { type: String, required: false, default: 'No phone' },
+    clientEmail: { type: String, required: false, default: 'no-email@example.com' },
     clientAddress: { type: String },
     
     // Device information
-    deviceType: { type: String, required: true },
-    deviceBrand: { type: String, required: true },
-    deviceModel: { type: String, required: true },
-    deviceSerialNumber: { type: String, required: true },
+    deviceType: { type: String, required: false, default: 'Unknown Device' },
+    deviceBrand: { type: String, required: false, default: 'Unknown Brand' },
+    deviceModel: { type: String, required: false, default: 'Unknown Model' },
+    deviceSerialNumber: { type: String, required: false, default: 'N/A' },
     hasWarranty: { type: Boolean, default: false },
     warrantyExpiration: { type: Date },
     
     // Service information
-    issueDescription: { type: String, required: true },
+    issueDescription: { type: String, required: false, default: 'No description provided' },
     priority: { 
         type: String, 
         enum: ['Low', 'Medium', 'High', 'Urgent'], 
@@ -24,13 +24,13 @@ const jobSchema = mongoose.Schema({
     },
     status: { 
         type: String, 
-        enum: ['Received', 'Diagnosing', 'Waiting for Parts', 'In Repair', 'Completed', 'Delivered', 'Cancelled', 'In Pending'], 
+        enum: ['Received', 'Diagnosing', 'Waiting for Parts', 'In Repair', 'Completed', 'Delivered', 'Cancelled', 'In Pending', 'On Road'], 
         default: 'In Pending' 
     },
     serviceDate: { type: Date, required: false },
     scheduledTime: { type: String, required: false },
     estimatedDuration: { type: Number, required: false }, // Duration in hours (e.g., 0.5, 1, 1.5, etc.)
-    assignedTo: { type: String, required: true },
+    assignedTo: { type: String, required: false, default: 'Unassigned' },
     usedSpareParts: [{ type: String }],
     
     // Report information
@@ -55,6 +55,11 @@ const jobSchema = mongoose.Schema({
     
     // Metadata
     businessType: { type: String, required: true },
+    companyId: { 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'User', 
+        required: false // Temporarily false for existing jobs, will be set automatically
+    },
     creator: { type: String },
     createdAt: {
         type: Date,

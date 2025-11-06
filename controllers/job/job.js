@@ -2,7 +2,19 @@ import JobModal from "../../models/job.js";
 
 export const createJob = async (req, res) => {
   try {
-    const job = await JobModal.create(req.body);
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
+    // Add companyId to job data
+    const jobData = {
+      ...req.body,
+      companyId: companyId
+    };
+    
+    const job = await JobModal.create(jobData);
     
     // Emit WebSocket event for new job
     const io = req.app.get('io');
@@ -19,8 +31,16 @@ export const createJob = async (req, res) => {
 
 export const getJobs = async (req, res) => {
   try {
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
     const { startDate, endDate, businessType } = req.query;
-    let query = {};
+    let query = {
+      companyId: companyId // Always filter by companyId - only return jobs that belong to this company
+    };
     
     // Filter by businessType if provided
     if (businessType) {
@@ -34,6 +54,8 @@ export const getJobs = async (req, res) => {
       };
     }
     
+    // Only return jobs that have companyId matching the user's companyId
+    // This ensures that jobs without companyId (old jobs) are not returned
     const jobs = await JobModal.find(query);
     res.status(200).json(jobs);
   } catch (error) {
@@ -43,7 +65,17 @@ export const getJobs = async (req, res) => {
 
 export const getJob = async (req, res) => {
   try {
-    const job = await JobModal.findById(req.params.id);
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
+    const job = await JobModal.findOne({ 
+      _id: req.params.id,
+      companyId: companyId 
+    });
+    
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
@@ -55,14 +87,27 @@ export const getJob = async (req, res) => {
 
 export const updateJob = async (req, res) => {
   try {
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
+    // First check if job exists and belongs to company
+    const existingJob = await JobModal.findOne({ 
+      _id: req.params.id,
+      companyId: companyId 
+    });
+    
+    if (!existingJob) {
+      return res.status(404).json({ message: "Job not found" });
+    }
+    
     const job = await JobModal.findByIdAndUpdate(
       req.params.id,
       { ...req.body, updatedAt: Date.now() },
       { new: true }
     );
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
-    }
     
     // Emit WebSocket event for job update
     const io = req.app.get('io');
@@ -84,10 +129,24 @@ export const updateJob = async (req, res) => {
 
 export const deleteJob = async (req, res) => {
   try {
-    const job = await JobModal.findByIdAndDelete(req.params.id);
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
+    // First check if job exists and belongs to company
+    const job = await JobModal.findOne({ 
+      _id: req.params.id,
+      companyId: companyId 
+    });
+    
     if (!job) {
       return res.status(404).json({ message: "Job not found" });
     }
+    
+    // Delete the job
+    await JobModal.findByIdAndDelete(req.params.id);
     
     // Emit WebSocket event for job deletion
     const io = req.app.get('io');
@@ -107,8 +166,24 @@ export const deleteJob = async (req, res) => {
 
 export const submitReport = async (req, res) => {
   try {
+    // Get companyId from authenticated user
+    const companyId = req.user?.id || req.userId;
+    if (!companyId) {
+      return res.status(401).json({ message: "Unauthorized - Company ID required" });
+    }
+    
     const { id } = req.params;
     const reportData = req.body;
+    
+    // First check if job exists and belongs to company
+    const existingJob = await JobModal.findOne({ 
+      _id: id,
+      companyId: companyId 
+    });
+    
+    if (!existingJob) {
+      return res.status(404).json({ message: "Job not found" });
+    }
     
     // Update job with report data and set status to Completed
     const job = await JobModal.findByIdAndUpdate(
@@ -120,10 +195,6 @@ export const submitReport = async (req, res) => {
       },
       { new: true }
     );
-    
-    if (!job) {
-      return res.status(404).json({ message: "Job not found" });
-    }
     
     res.status(200).json({ 
       message: "Report submitted successfully", 

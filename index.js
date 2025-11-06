@@ -22,6 +22,9 @@ import subscriptionPaymentRoutes from './routes/subscriptionPayment/subscription
 
 // Konfigurisanje dotenv-a
 dotenv.config({ path: './.env' });
+console.log("📁 Server .env loaded from:", process.cwd() + '/.env');
+console.log("📧 SMTP_USER:", process.env.SMTP_USER ? "✅ Postavljen" : "❌ NEDOSTAJE");
+console.log("📧 SMTP_PASSWORD:", process.env.SMTP_PASSWORD ? "✅ Postavljen" : "❌ NEDOSTAJE");
 
 const app = express();
 const server = createServer(app);
@@ -96,32 +99,94 @@ mongoose.connect(CONNECTION_URL)
 
 // Socket.IO event handlers
 io.on('connection', (socket) => {
-  console.log(`🔌 User connected: ${socket.id}`);
+  const timestamp = new Date().toISOString();
+  const clientIP = socket.handshake.address || socket.request?.socket?.remoteAddress || 'unknown';
+  const transport = socket.conn?.transport?.name || 'unknown';
+  
+  console.log(`[${timestamp}] 🔌 User connected: ${socket.id}`);
+  console.log(`  📍 IP: ${clientIP} | Transport: ${transport}`);
+  
+  // Store user info for disconnect logging
+  let userInfo = {
+    userId: null,
+    userType: null,
+    businessType: null,
+    rooms: []
+  };
   
   // Join user to specific room based on user type
   socket.on('join_room', (data) => {
     const { userType, userId, businessType } = data;
     const roomName = `${userType}_${businessType || 'default'}`;
     socket.join(roomName);
-    console.log(`👤 User ${userId} joined room: ${roomName}`);
+    
+    // Update user info
+    userInfo.userId = userId;
+    userInfo.userType = userType;
+    userInfo.businessType = businessType;
+    if (!userInfo.rooms.includes(roomName)) {
+      userInfo.rooms.push(roomName);
+    }
+    
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] 👤 User ${userId} joined room: ${roomName}`);
+    console.log(`  📋 User Type: ${userType} | Business Type: ${businessType || 'default'}`);
   });
   
   // Handle job status updates
   socket.on('job_status_update', (data) => {
-    console.log(`📋 Job status update:`, data);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] 📋 Job status update:`, data);
     // Broadcast to all users in the same business type
     io.to(`${data.userType}_${data.businessType}`).emit('job_updated', data);
   });
   
   // Handle worker status updates
   socket.on('worker_status_update', (data) => {
-    console.log(`👷 Worker status update:`, data);
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] 👷 Worker status update:`, data);
     // Broadcast to admin users
     io.to(`company_${data.businessType}`).emit('worker_status_changed', data);
   });
   
-  socket.on('disconnect', () => {
-    console.log(`🔌 User disconnected: ${socket.id}`);
+  socket.on('disconnect', (reason) => {
+    const timestamp = new Date().toISOString();
+    const disconnectReasons = {
+      'io server disconnect': 'Server forcibly disconnected',
+      'io client disconnect': 'Client manually disconnected',
+      'ping timeout': 'Ping timeout - no response from client',
+      'transport close': 'Transport connection closed',
+      'transport error': 'Transport error occurred',
+      'parse error': 'Error parsing message',
+      'server shutting down': 'Server is shutting down'
+    };
+    
+    const reasonText = disconnectReasons[reason] || reason || 'Unknown reason';
+    
+    console.log(`[${timestamp}] 🔌 User disconnected: ${socket.id}`);
+    console.log(`  ❌ Reason: ${reasonText} (${reason || 'N/A'})`);
+    
+    if (userInfo.userId) {
+      console.log(`  👤 User ID: ${userInfo.userId}`);
+      console.log(`  📋 User Type: ${userInfo.userType || 'N/A'} | Business Type: ${userInfo.businessType || 'N/A'}`);
+    }
+    
+    if (userInfo.rooms.length > 0) {
+      console.log(`  🏠 Rooms: ${userInfo.rooms.join(', ')}`);
+    }
+    
+    // Calculate connection duration if we have connection time
+    if (socket.handshake?.issued) {
+      const connectionDuration = Date.now() - new Date(socket.handshake.issued).getTime();
+      const durationSeconds = Math.floor(connectionDuration / 1000);
+      console.log(`  ⏱️  Connection duration: ${durationSeconds}s`);
+    }
+  });
+  
+  // Handle connection errors
+  socket.on('error', (error) => {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ⚠️  Socket error for ${socket.id}:`, error.message);
   });
 });
 

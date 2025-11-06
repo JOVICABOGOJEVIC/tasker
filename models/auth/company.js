@@ -118,6 +118,10 @@ const companySchema = mongoose.Schema({
   emailVerificationToken: {type: String},
   emailVerificationTokenExpiry: {type: Date},
   
+  // Password reset
+  passwordResetToken: {type: String},
+  passwordResetTokenExpiry: {type: Date},
+  
   // Timestamps
   created: {type: Date, default: Date.now},
   lastUpdated: {type: Date, default: Date.now}

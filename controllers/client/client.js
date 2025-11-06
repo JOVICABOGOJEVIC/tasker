@@ -79,7 +79,6 @@ export const createClient = async (req, res) => {
     const io = req.app.get('io');
     if (io) {
       // Get company business type for room targeting
-      const CompanyModel = (await import('../auth/company.js')).default;
       const company = await CompanyModel.findById(companyId);
       if (company && company.businessType) {
         io.to(`company_${company.businessType}`).emit('client_created', { client, companyId });
