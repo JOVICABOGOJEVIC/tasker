@@ -19,6 +19,8 @@ import notificationRoutes from './routes/notification/notification.js';
 import inventoryRoutes from './routes/inventory/inventory.js';
 import paymentRoutes from './routes/payment/payment.js';
 import subscriptionPaymentRoutes from './routes/subscriptionPayment/subscriptionPayment.js';
+import serviceRoutes from './routes/service/service.js';
+import aiBusinessRoutes from './routes/aiBusiness.js';
 
 // Konfigurisanje dotenv-a
 dotenv.config({ path: './.env' });
@@ -207,6 +209,8 @@ app.use("/api/notifications", notificationRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/subscription-payments", subscriptionPaymentRoutes);
+app.use("/api/services", serviceRoutes);
+app.use("/api/ai-business", aiBusinessRoutes);
 
 // Middleware za logovanje grešaka
 app.use((err, req, res, next) => {

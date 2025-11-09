@@ -8,6 +8,9 @@ const jobSchema = mongoose.Schema({
     clientAddress: { type: String },
     
     // Device information
+    deviceCategoryId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeviceCategory', default: null },
+    deviceCategoryName: { type: String, required: false, default: '' },
+    deviceTypeId: { type: mongoose.Schema.Types.ObjectId, ref: 'DeviceType', default: null },
     deviceType: { type: String, required: false, default: 'Unknown Device' },
     deviceBrand: { type: String, required: false, default: 'Unknown Brand' },
     deviceModel: { type: String, required: false, default: 'Unknown Model' },
@@ -31,6 +34,10 @@ const jobSchema = mongoose.Schema({
     scheduledTime: { type: String, required: false },
     estimatedDuration: { type: Number, required: false }, // Duration in hours (e.g., 0.5, 1, 1.5, etc.)
     assignedTo: { type: String, required: false, default: 'Unassigned' },
+    serviceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Service', default: null },
+    serviceName: { type: String, required: false, default: '' },
+    servicePrice: { type: Number, required: false, default: null },
+    serviceDurationMinutes: { type: Number, required: false, default: null },
     usedSpareParts: [{ type: String }],
     
     // Report information

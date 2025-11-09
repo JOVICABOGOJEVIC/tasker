@@ -21,7 +21,8 @@ const auth = async (req, res, next) => {
     req.user = {
       id: decodedData?.id,
       email: decodedData?.email,
-      type: decodedData?.type || 'company'
+      type: decodedData?.type || 'company',
+      role: decodedData?.role || decodedData?.type || 'company'
     };
     
     // Also add userId for backward compatibility with existing controllers

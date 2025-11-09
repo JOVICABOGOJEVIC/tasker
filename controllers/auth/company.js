@@ -66,13 +66,13 @@ export const signinCompany = async(req,res)=>{
             return res.status(400).json({message:'Invalid credentials'});
         }
 
-        // Check if email is verified
+        // If email verification was previously required, auto-mark as verified
         if (!oldCompany.isEmailVerified) {
-            console.log("Email not verified for company:", email);
-            return res.status(403).json({
-                message: 'Email not verified. Please check your email and verify your account.',
-                requiresVerification: true
-            });
+            console.log("Auto-verifying email for company:", email);
+            oldCompany.isEmailVerified = true;
+            oldCompany.emailVerificationToken = undefined;
+            oldCompany.emailVerificationTokenExpiry = undefined;
+            await oldCompany.save();
         }
         
         // Get country code from phone number
@@ -93,7 +93,8 @@ export const signinCompany = async(req,res)=>{
                 email: oldCompany.email, 
                 id: oldCompany._id,
                 businessType: oldCompany.businessType,
-                countryCode: countryCode
+                countryCode: countryCode,
+                role: oldCompany.role || 'owner'
             }, 
             secret, 
             {expiresIn:'24h'}
@@ -104,7 +105,8 @@ export const signinCompany = async(req,res)=>{
             result: {
                 ...oldCompany._doc,
                 countryCode: countryCode,
-                businessType: oldCompany.businessType
+                businessType: oldCompany.businessType,
+                role: oldCompany.role || 'owner'
             },
             token
         };
@@ -113,7 +115,8 @@ export const signinCompany = async(req,res)=>{
             id: responseData.result._id,
             email: responseData.result.email,
             businessType: responseData.result.businessType,
-            countryCode: responseData.result.countryCode
+            countryCode: responseData.result.countryCode,
+            role: responseData.result.role
         });
         
         res.status(200).json(responseData);
@@ -167,11 +170,6 @@ export const signupCompany = async(req,res) =>{
         
         const hashedPassword = await bcrypt.hash(password, 12);
         
-        // Generate email verification token
-        const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-        const emailVerificationTokenExpiry = new Date();
-        emailVerificationTokenExpiry.setHours(emailVerificationTokenExpiry.getHours() + 24); // Token expires in 24 hours
-        
         // Prepare company data with required fields
         const companyData = {
             email,
@@ -184,32 +182,11 @@ export const signupCompany = async(req,res) =>{
             address,
             businessType,
             role: "owner",
-            isEmailVerified: false,
-            emailVerificationToken,
-            emailVerificationTokenExpiry
+            isEmailVerified: true,
         };
         
         console.log("Creating company with data:", companyData);
         const result = await CompanyModel.create(companyData);
-        
-        // Send verification email
-        try {
-            const emailResult = await sendVerificationEmail(
-                result.email,
-                emailVerificationToken,
-                result.companyName
-            );
-            
-            if (!emailResult.success) {
-                console.error("Failed to send verification email:", emailResult.error);
-                // Don't fail registration if email fails, but log it
-            } else {
-                console.log("Verification email sent successfully");
-            }
-        } catch (emailError) {
-            console.error("Error sending verification email:", emailError);
-            // Don't fail registration if email fails
-        }
         
         console.log("Company created successfully:", {
             id: result._id,
@@ -226,8 +203,8 @@ export const signupCompany = async(req,res) =>{
                 businessType: result.businessType,
                 isEmailVerified: result.isEmailVerified
             },
-            message: 'Registration successful. Please check your email to verify your account.',
-            requiresVerification: true
+            message: 'Registration successful. Možeš odmah da koristiš aplikaciju.',
+            requiresVerification: false
         });
     } catch(error) {
         console.error("Registration error:", error);
@@ -260,11 +237,6 @@ export const registerCompany = async (req, res) => {
     // Hashovanje lozinke
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Generate email verification token
-    const emailVerificationToken = crypto.randomBytes(32).toString('hex');
-    const emailVerificationTokenExpiry = new Date();
-    emailVerificationTokenExpiry.setHours(emailVerificationTokenExpiry.getHours() + 24);
-
     // Kreiranje nove kompanije
     const result = await CompanyModel.create({
       ownerName,
@@ -277,34 +249,17 @@ export const registerCompany = async (req, res) => {
       address,
       businessType,
       role: "owner",
-      isEmailVerified: false,
-      emailVerificationToken,
-      emailVerificationTokenExpiry
+      isEmailVerified: true,
     });
-
-    // Send verification email
-    try {
-      const emailResult = await sendVerificationEmail(
-        result.email,
-        emailVerificationToken,
-        result.companyName
-      );
-      
-      if (!emailResult.success) {
-        console.error("Failed to send verification email:", emailResult.error);
-      } else {
-        console.log("Verification email sent successfully");
-      }
-    } catch (emailError) {
-      console.error("Error sending verification email:", emailError);
-    }
 
     // Generisanje JWT tokena
     const token = jwt.sign(
       { 
         email: result.email, 
         id: result._id,
-        countryCode: result.countryCode // Include country code in token
+        countryCode: result.countryCode,
+        businessType: result.businessType,
+        role: result.role || 'owner'
       },
       process.env.JWT_SECRET || "test",
       { expiresIn: "24h" }
@@ -313,8 +268,8 @@ export const registerCompany = async (req, res) => {
     res.status(201).json({ 
       result, 
       token,
-      message: 'Registration successful. Please check your email to verify your account.',
-      requiresVerification: true
+      message: 'Registration successful. Možeš odmah da koristiš aplikaciju.',
+      requiresVerification: false
     });
   } catch (error) {
     console.error("Registration error:", error);

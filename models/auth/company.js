@@ -114,7 +114,7 @@ const companySchema = mongoose.Schema({
   },
   
   // Email verification
-  isEmailVerified: {type: Boolean, default: false},
+  isEmailVerified: {type: Boolean, default: true},
   emailVerificationToken: {type: String},
   emailVerificationTokenExpiry: {type: Date},
   
