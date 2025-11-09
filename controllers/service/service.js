@@ -2,13 +2,55 @@ import mongoose from 'mongoose';
 import DeviceCategory from '../../models/deviceCategory.js';
 import DeviceType from '../../models/deviceType.js';
 import Service from '../../models/service.js';
+import Worker from '../../models/worker.js';
+import CompanyModel from '../../models/auth/company.js';
 
-const ensureAuth = (req, res) => {
-  const email = req.user?.email;
+const ensureAuth = async (req, res) => {
+  let email = req.user?.email || null;
+
+  if (!email && req.user?.id) {
+    try {
+      const company = await CompanyModel.findById(req.user.id).select('email businessType');
+      if (company?.email) {
+        email = company.email;
+        req.user.companyEmail = company.email;
+        req.user.businessType = req.user.businessType || company.businessType;
+      }
+    } catch (error) {
+      console.error('Greška pri učitavanju kompanije za korisnika:', error);
+    }
+  }
+
+  if ((!email || req.user?.role === 'worker' || req.user?.type === 'worker') && req.user?.id) {
+    try {
+      const worker = await Worker.findById(req.user.id).select('companyId');
+      if (!worker || !worker.companyId) {
+        res.status(403).json({ message: 'Radnik nije povezan sa kompanijom.' });
+        return null;
+      }
+
+      const company = await CompanyModel.findById(worker.companyId).select('email businessType');
+      if (!company?.email) {
+        res.status(403).json({ message: 'Kompanija za radnika nije pronađena.' });
+        return null;
+      }
+
+      email = company.email;
+      req.user.companyEmail = company.email;
+      req.user.companyId = worker.companyId;
+      req.user.businessType = req.user.businessType || company.businessType;
+    } catch (error) {
+      console.error('Greška pri utvrđivanju kompanije za radnika:', error);
+      res.status(500).json({ message: 'Greška pri proveri privilegija.' });
+      return null;
+    }
+  }
+
   if (!email) {
     res.status(401).json({ message: 'Korisnik nije autentifikovan.' });
     return null;
   }
+
   return email;
 };
 
@@ -87,7 +129,7 @@ const mapService = (service, options = {}) => {
 };
 
 export const getDeviceCategories = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -100,7 +142,7 @@ export const getDeviceCategories = async (req, res) => {
 };
 
 export const createDeviceCategory = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -134,7 +176,7 @@ export const createDeviceCategory = async (req, res) => {
 };
 
 export const updateDeviceCategory = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -171,7 +213,7 @@ export const updateDeviceCategory = async (req, res) => {
 };
 
 export const deleteDeviceCategory = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -193,7 +235,7 @@ export const deleteDeviceCategory = async (req, res) => {
 };
 
 export const getDeviceTypes = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -209,7 +251,7 @@ export const getDeviceTypes = async (req, res) => {
 };
 
 export const createDeviceType = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -254,7 +296,7 @@ export const createDeviceType = async (req, res) => {
 };
 
 export const updateDeviceType = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -298,7 +340,7 @@ export const updateDeviceType = async (req, res) => {
 };
 
 export const deleteDeviceType = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -319,7 +361,7 @@ export const deleteDeviceType = async (req, res) => {
 };
 
 export const getServices = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -347,7 +389,7 @@ export const getServices = async (req, res) => {
 };
 
 export const createService = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
@@ -413,7 +455,7 @@ export const createService = async (req, res) => {
 };
 
 export const updateService = async (req, res) => {
-  const userEmail = ensureAuth(req, res);
+  const userEmail = await ensureAuth(req, res);
   if (!userEmail) return;
 
   try {
