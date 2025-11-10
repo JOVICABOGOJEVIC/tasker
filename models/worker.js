@@ -43,7 +43,10 @@ const workerSchema = mongoose.Schema({
     canViewWorkers: { type: Boolean, default: false },
     canViewStatus: { type: Boolean, default: true }
   },
-  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: false }, // Link to company
+  companyId: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', required: false }, // Link to company
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Company', default: null },
+  companyEmail: { type: String, default: '' },
+  createdByEmail: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
